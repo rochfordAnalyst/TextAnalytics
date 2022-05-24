@@ -1,0 +1,217 @@
+---
+title: "Untitled"
+author: "brian rochford"
+date: "4/20/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r message=FALSE, warning=FALSE}
+library(haven)
+library(usmap)
+library(tidyverse)
+library(stargazer)
+library(kableExtra)
+library(AER)
+library(wooldridge)
+library(plm)
+library(stargazer)
+library(haven)
+library(labelled)
+library(lubridate)
+library(XLConnect)
+library(rJava)
+library(xlsx)
+library(readxl)
+library(ggplot2)
+library(gtsummary)
+```
+
+
+```{r}
+df <- read_excel("/Users/brianrochford/wineRegionDummies.xlsx")
+```
+```{r }
+df_norm <- read_excel("/Users/brianrochford/normalizedWineRegionDummy.xlsx")
+```
+1. Estimate a difference in difference equation using year variables and the variable nearinc, which means near the incenerator. 
+```{r}
+year_set = home_price %>% distinct(year)
+home_price = home_price %>% mutate(
+  year1978 = 0,
+  year1981 = 0,
+  nearInc0 = 0,
+  nearInc1 = 0,
+)
+y1978 = home_price %>% filter(year == 1978) %>% mutate(year1978 = 1)
+y1981 = home_price %>% filter(year == 1981) %>% mutate(year1981 = 1)
+nearInc0 = home_price %>% filter(nearinc == 0) %>% mutate(nearInc0 = 1)
+nearInc1 = home_price %>% filter(nearinc == 1) %>% mutate(nearInc1 = 1)
+new_data = y1978 %>%
+  rbind(y1981) %>%
+  rbind(nearInc0) %>%
+  rbind(nearInc1)
+```
+```{r}
+model_diff2 = lm(price ~ factor(year) + factor(nearinc) + factor(I(year * nearinc)),
+data = new_data, na.action = na.omit)
+```
+**2b**
+get average by region and year 
+```{r}
+mean_function = function(y=1978){
+home_price %>%
+  filter(year == y) %>%
+group_by(nearinc) %>%
+  summarise(avg_home_price = mean(price, na.rm = TRUE))
+}
+mean78 = mean_function(1978)
+
+```
+```{r}
+mean81 = mean_function(1981) 
+```
+```{r}
+mean78 %>% full_join(mean81)
+
+```
+
+diff in diff region model
+```{r}
+model_diff = lm(price ~ 0 + factor(countyGroup),
+data = df, na.action = na.omit)
+summary(model_diff)
+```
+```{r}
+model_diff2 = lm(points~price  + factor(countyGroup),
+data = df, na.action = na.omit)
+summary(model_diff2)
+```
+
+
+
+
+```{r }
+plot(model_diff2, which = 2)
+```
+```{r}
+model_diff_norm = lm(points~ price  + factor(countyGroup),
+data = df_norm, na.action = na.omit)
+summary(model_diff_norm)
+```
+
+
+
+
+
+
+
+
+```{r }
+plot(model_diff_norm, which = 2)
+```
+
+
+```{r }
+df_norm
+```
+
+```{r}
+model_diff_words = lm(points~price  + factor(countyGroup),
+data = df_norm, na.action = na.omit)
+summary(model_diff_words)
+```
+
+
+
+
+```{r }
+plot(model_diff_norm, which = 2)
+```
+
+
+
+
+
+
+##create a price grouping categorical dummy
+## do interaction price and region group
+```{r}
+model_diff3 = lm(points~price  + factor(countyGroup) + I(factor(countyGroup)*price),
+data = df, na.action = na.omit)
+summary(model_diff3)
+```
+
+
+
+
+
+
+```{r results = 'asis'}
+stargazer(model_diff2, model_diff, type = "html", style = "aer", title = "Differences in Differences by Year and Neighborhood", dep.var.labels = c("Diff in Diff", "Average prices"), covariate.labels = c("year dummy-1981", "nearIncenerator (neighborhood 1)", "I(year * nearIncenerator)-1978", "", "year-1978", "year-1981", "nearIncenerator(neighborhood 0)", "nearIncenerator(neighborhood1)"))
+```
+
+
+#fixed effects
+```{r results='asis'}
+stargazer(mepsp20,
+          type = "html",
+          style = "aer",
+          summary.stat=c("n", "mean", "sd"),
+          omit = c("dupersid", "round", "duid", "region"),
+          covariate.labels = c("All 5 Rounds", "Age", "Education", "Health", "Mental Health", "Insurance", "Prescription Ins.", "Total Expenditures", "ER Expenditures", "Prescription Exp.    ", "Income"))
+```
+
+```{r}
+pdim(df)
+
+dfnew <- pdata.frame(df, index=c("countyGroup", "winery"))
+pvar(dfnew)
+```
+```{r }
+pdim(df)
+```
+mepsp20 <- pdata.frame(mepsp20, index=c("dupersid", "round"))
+pvar(mepsp20)
+
+```{r }
+df_newest <- pdata.frame(df, index=c("index", "countyGroup"))
+```
+
+
+```{r }
+pdim(df_newest)
+```
+pvar(mepsp20)
+```{r }
+pvar(df_newest)
+```
+
+
+
+
+
+
+
+
+
+
+**5**
+
+
+**The results in the table above show that the effects of having insurance on overall health, mental health, and even ER expenditures are not significant. The effect of having insurance on the outcome of total health expenditures is the only model with significant effects from the insurance variable shown. This result is because when modeling a regression with fixed effects the interpretation of the coefficients for the independent variables change. The insurance coefficient is interpreted as, an individual went from not having insurance to having insurance within the time frame of these 5 rounds of surveys. This is different from an OLS model intepretation. Due to this disparity, the coefficient value in the fixed effect regression above only accounts for the resulting effects of changing to having insurance within the time frame of the survey. To see the effects of having insurance on overall health or mental health would take longer then the duration of all the rounds of surveys in this data set.**
+**If this regression was a pooled OLS model the interpretation of the insurance variables coefficient would be just the effect of having insurance on health, not the effect of changing from not having insurance to having it within the time frame of the survey. Therefore this would allow for the overall effects of having insurance to be shown, which aren't limited to the certain frame. This would then prove that insurance has significant effects on mental health and overall health over time.**
+
+
+6. 
+```{r}
+all5rds_lpm = plm(all5rds ~ (insurance) + income + as.factor(region) + age, data = mepsp20, model = "pooling", na.action = na.omit)
+```
+```{r results = 'asis'}
+stargazer(all5rds_lpm, type = "html", style = "aer", title = "Test for Attrition Bias model with linear probability", omit = c("region"), dep.var.labels = c("Individuals answered all 5 rounds of survey"))
+```
+
+
+**As you can see from the results of the linear probability test above that there is attrition bias. We know this because when we run this model with whether an individual answered the survey in all 5 rounds as the dependent variable and see that the independent variables have significant effects on whether the person answered all 5 rounds. This means that if a person doesn't answer all 5 rounds of the survey and drops out for whatever reason, then that person dropping out would bias any of these independent variables showing significance in the table above.**
